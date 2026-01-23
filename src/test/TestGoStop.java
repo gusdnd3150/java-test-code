@@ -7,6 +7,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Stack;
 
 public class TestGoStop {
@@ -15,10 +17,12 @@ public class TestGoStop {
 	String newData = null;
 	String[] aryProcCd = new String[] { "TA0101", "TA0102", "TA0103", "TA0104", "TA0105" }; // index 0부터 초입공정
 	int aryProcCdPoint[] = new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }; // 공정별 신호정보
-
+	HMap<String, Object> inMap = new HMap<>(); // 각 공정 진입차량
+	List<HMap<String,Object>> procList = new ArrayList<>(); // 
+	
 	public TestGoStop() throws IOException {
 
-		//loadDbData();
+		loadDbData();
 
 		while (true) {
 			System.out.println("command:");
@@ -39,7 +43,6 @@ public class TestGoStop {
 	public void testGoAndStop() {
 		System.out.println("signal data:");
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-		HMap<String, Object> inMap = new HMap<>();
 		Stack<HMap<String, Object>> stack = new Stack<>();
 
 		for (int i = 0; i < aryProcCd.length; i++) {
@@ -64,11 +67,11 @@ public class TestGoStop {
 					System.out.println("종료 all mode");
 					break;
 				}
-
 				// 전체 쉬프트정보가 통으로 바뀔때
 				newData = cmd;
 				// 기존 신호랑 다를경우
 				if (!oldData.equals(newData)) {
+					List<HMap<String,Object>> moveCatList = new ArrayList<>(); // 
 //						strDatas.charAt(aryProcCdPoint[i])
 					System.out.println("입력값: " + cmd);
 					System.out.println("old 데이터: " + oldData);
@@ -82,8 +85,12 @@ public class TestGoStop {
 							System.out.println(strProcCd);
 							System.out.println(strSignal);
 							String targetCar = inMap.getString(strProcCd);
-							if (targetCar != null && !targetCar.equals("")) {
-
+							HMap<String,Object> procMap = getProcMap(strProcCd);
+							if (procMap != null && targetCar != null && !targetCar.equals("")) {
+								HMap<String,Object> inData = new HMap<>();
+								inData.put("BODY_NO", stack);
+								inData.put("PROC_CD", procMap.getString("PROC_CD_NEXT"));
+								moveCatList.add(procMap);
 							}
 						}
 					}
@@ -96,6 +103,15 @@ public class TestGoStop {
 				e.printStackTrace();
 			}
 		}
+	}
+	
+	public HMap<String,Object> getProcMap(String procCd){
+		for(int i=0;i<procList.size();i++) {
+			if(procList.get(i).getString("PROC_CD").equals(procCd)) {
+				return procList.get(i);
+			}
+		}
+		return null;
 	}
 
 	public void loadDbData() {
@@ -115,13 +131,28 @@ public class TestGoStop {
 			// 2. DB 연결
 			conn = DriverManager.getConnection(url, user, pass);
 
-			String sql = "SELECT PROC_CD FROM TB_BI_PROC WHERE 1=1 AND LINE_CD = 'FN01' AND PROC_TY_CD ='Process' ORDER BY SORT_NO ASC";
+			//String sql = "SELECT PROC_CD FROM TB_BI_PROC WHERE 1=1 AND LINE_CD = 'FN01' AND PROC_TY_CD ='Process' ORDER BY SORT_NO ASC";
+			String sql  = "SELECT "
+			+ "	PROC_CD "
+			+ "	,LEAD(PROC_CD) OVER(ORDER BY PROC_CD) AS PROC_CD_NEXT"
+			+ "	,LAG(PROC_CD) OVER(ORDER BY PROC_CD)  AS PROC_CD_PRE"
+			+ " FROM TB_BI_PROC "
+			+ " WHERE 1=1 "
+			+ " AND LINE_CD = 'FN01' "
+			+ " AND PROC_TY_CD ='Process'"
+			+ " ORDER BY SORT_NO ASC";
 			pstmt = conn.prepareStatement(sql);
 			rs = pstmt.executeQuery();
 
 			// 4. 결과 처리
 			while (rs.next()) {
-				System.out.println(rs.getString("PROC_CD"));
+				HMap<String,Object> proc = new HMap<>();
+				proc.put("PROC_CD", rs.getString("PROC_CD"));
+				proc.put("PROC_CD_NEXT", rs.getString("PROC_CD_NEXT"));
+				proc.put("PROC_CD_PRE", rs.getString("PROC_CD_PRE"));
+				procList.add(proc);
+				//String remk = String.format( "procCd:%s, next:%s, pre:%s",rs.getString("PROC_CD"),rs.getString("PROC_CD_NEXT"),rs.getString("PROC_CD_PRE"));
+				//System.out.println(remk);
 			}
 
 		} catch (Exception e) {
