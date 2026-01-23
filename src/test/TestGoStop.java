@@ -15,10 +15,10 @@ public class TestGoStop {
 
 	String oldData = null;
 	String newData = null;
-	String[] aryProcCd = new String[] { "TA0101", "TA0102", "TA0103", "TA0104", "TA0105" }; // index 0부터 초입공정
+	String[] aryProcCd = new String[] { "TA0101", "TA0102", "TA0103", "TA0104", "TA0105" }; // 
 	int aryProcCdPoint[] = new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }; // 공정별 신호정보
 	HMap<String, Object> inMap = new HMap<>(); // 각 공정 진입차량
-	List<HMap<String,Object>> procList = new ArrayList<>(); // 
+	List<HMap<String,Object>> procList = new ArrayList<>(); //  index 0부터 초입공정
 	
 	public TestGoStop() throws IOException {
 
@@ -30,10 +30,10 @@ public class TestGoStop {
 			String cmd = br.readLine();
 			
 			switch (cmd) {
-			case "all":
+			case "ALL": // PLC 시그널
 				testGoAndStop();
 				break;
-			case "proc_in":
+			case "PROC_IN": // 공정진입
 				procIn();
 				break;
 
@@ -44,88 +44,93 @@ public class TestGoStop {
 
 	}
 	
-	public void procIn() {
-		System.out.println("procCd:");
+	public void procIn() throws IOException {
+		
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 		Stack<HMap<String, Object>> stack = new Stack<>();
 		
 		String procCd = null;
 		String bodyNo = null;
-		while (true) {
-			try {
-				procCd = br.readLine();
-				break;
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-		System.out.println("bodyNo:");
-		while (true) {
-			try {
-				bodyNo = br.readLine();
-				break;
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
 		
-		System.out.println(String.format("procCd %s , bodyNO %s", procCd,bodyNo));
+		System.out.println("procCd:");
+		procCd = br.readLine();
+		
+		System.out.println("bodyNo:");
+		bodyNo = br.readLine();
+		
+		
+		System.out.println(String.format("PROC_IN = procCd %s , bodyNO %s", procCd,bodyNo));
 		inMap.put(procCd, bodyNo);
 	}
 
 	public void testGoAndStop() {
-		System.out.println("signal data:");
+		
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 		Stack<HMap<String, Object>> stack = new Stack<>();
 
-		for (int i = 0; i < aryProcCd.length; i++) {
-
-			if (i == 0) {
-				inMap.put(aryProcCd[i], "CAR 123456");
-			} else {
-				inMap.put(aryProcCd[i], "");
-			}
-		}
-
 		if (null == oldData) {
-			oldData = "000000000000000000"; // 임시처리값
+			oldData = Utils.rpad(oldData, procList.size(), '0');; // 디폴트 세팅
 		}
 
 		while (true) {
 			try {
-				String cmd;
-				cmd = br.readLine();
+				System.out.println("signal data:");
+				String cmd = br.readLine();
 
 				if ("x".equalsIgnoreCase(cmd)) {
 					System.out.println("종료 all mode");
 					break;
+				}
+				if ("snap".equalsIgnoreCase(cmd)) {
+					snapshot();
+					continue;
 				}
 				// 전체 쉬프트정보가 통으로 바뀔때
 				newData = cmd;
 				// 기존 신호랑 다를경우
 				if (!oldData.equals(newData)) {
 					List<HMap<String,Object>> moveCatList = new ArrayList<>(); // 
-					System.out.println("입력값: " + cmd);
-					System.out.println("old 데이터: " + oldData);
-					System.out.println("new 데이터: " + newData);
+					List<HMap<String,Object>> idleList = new ArrayList<>(); // 
+//					System.out.println("입력값: " + cmd);
+//					System.out.println("old 데이터: " + oldData);
+//					System.out.println("new 데이터: " + newData);
 					
-					for(int i=0;i<procList.size();i++) {
+					//for(int i=0;i<procList.size();i++) {
+					for(int i = procList.size() - 1; i >= 0; i--) {	
 						// char d =newData.charAt(aryProcCdPoint[i]);
 						String strSignal = newData.substring(i, i + 1); // 1자리 데이터 가져옴
-						HMap<String,Object> mapProc =  procList.get(i);
-						String strProcCd = mapProc.getString("PROC_CD");
+						
+						
 						if ("1".equals(strSignal)) { // 1= ls 신호 혹은 plc go 신호
-							System.out.println(strProcCd);
-							System.out.println(strSignal);
+							
+							HMap<String,Object> mapProc =  procList.get(i);
+							String strProcCd = mapProc.getString("PROC_CD");
+							System.out.println(String.format("%s ,%s ", strProcCd,strSignal));
+							
 							String targetCar = inMap.getString(strProcCd);
 							if (mapProc != null && targetCar != null && !targetCar.equals("")) {
+								
 								HMap<String,Object> inData = new HMap<>();
 								inData.put("BODY_NO", targetCar);
+								
+								if(mapProc.getString("PROC_CD_NEXT") == null || "".equals(mapProc.getString("PROC_CD_NEXT") )) { // 앞공정이 비어있으면 라인끝 idle 처리
+									inData.put("PROC_CD", "IDLE");
+									idleList.add(mapProc);
+									continue;
+								}
+								
+								String nextProcCar = inMap.getString("PROC_CD_NEXT"); // 앞공정 조회
+								if(nextProcCar != null && !nextProcCar.equals("")) { // 앞 공정에 차량이 있으면 path
+									System.out.println("already car in");
+									continue;
+								}
+								
 								inData.put("PROC_CD", mapProc.getString("PROC_CD_NEXT"));
 								inData.put("PROC_CD_PRE", mapProc.getString("PROC_CD"));
 								
-								inMap.put(strProcCd, "EMPTY"); // 현재공정 초기화
-								inMap.put(mapProc.getString("PROC_CD_NEXT"), targetCar); // 대상공정으로 바디이관
+								
+								inMap.put(strProcCd, "");// 현재공정 초기화
+								//inMap.put(mapProc.getString("PROC_CD_NEXT"), targetCar); // 대상공정으로 바디이관
 								
 								moveCatList.add(inData);
 							}
@@ -136,28 +141,10 @@ public class TestGoStop {
 					for (HMap<String, Object> hMap : moveCatList) {
 						System.out.println(hMap.toString());
 					}
-//					
-//					for (int i = 0; i < aryProcCd.length; i++) {
-//						// char d =newData.charAt(aryProcCdPoint[i]);
-//						String strSignal = newData.substring(i, i + 1); // 1자리 데이터 가져옴
-//						String strProcCd = aryProcCd[i];
-//
-//						if ("1".equals(strSignal)) { // 1= ls 신호 혹은 plc go 신호
-//							System.out.println(strProcCd);
-//							System.out.println(strSignal);
-//							String targetCar = inMap.getString(strProcCd);
-//							HMap<String,Object> procMap = getProcMap(strProcCd);
-//							if (procMap != null && targetCar != null && !targetCar.equals("")) {
-//								HMap<String,Object> inData = new HMap<>();
-//								inData.put("BODY_NO", stack);
-//								inData.put("PROC_CD", procMap.getString("PROC_CD_NEXT"));
-//								moveCatList.add(procMap);
-//							}
-//						}
-//					}
 				}
 
 				oldData = newData;
+				snapshot();
 
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -165,6 +152,24 @@ public class TestGoStop {
 			}
 		}
 	}
+	
+	
+	public void snapshot() {
+		
+		String procInfo = "";
+		String bodyInfo = "";
+		
+		for (HMap<String,Object> proc : procList) {
+			procInfo += Utils.center(proc.getString("PROC_CD"), 10)+" ||";
+		}
+		for (HMap<String,Object> proc : procList) {
+			bodyInfo += Utils.center(inMap.getString(proc.getString("PROC_CD")), 10)+" ||";
+		}
+		System.out.println(procInfo);
+		System.out.println(bodyInfo);
+	}
+	
+	
 	
 	public HMap<String,Object> getProcMap(String procCd){
 		for(int i=0;i<procList.size();i++) {
