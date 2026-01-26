@@ -301,8 +301,11 @@ public class TestGoStop {
 					String procCar = inMap.getString(strProcCd); // 이동할 공정 조회
 					if (procCar != null && !procCar.isEmpty()) { // 이동할 공정에 차량이 있으면
 						System.out.println("이동할 공정에 차량이 있어 쉬프트 합니다.");
+						// 뒷공정부터 신호가 차례대로 들어와야 정상이나,
+						// 뒷공정 신호가 누락될 경우 필요할듯
 						shiftLineCar(procList, strProcCd, moveCatList, idleList);
 						//continue;
+						
 					}else {
 						// 현재공정 앞에 버퍼공정이 있을 경우
 						if (bufferList.size() > 0) {
@@ -384,24 +387,29 @@ public class TestGoStop {
 				HMap<String,Object> procMap = procList.get(i);
 				String procCd = procMap.getString("PROC_CD");
 				String procCdNext = procMap.getString("PROC_CD_NEXT");
-				String curCar = inMap.getString(procCd);
+				String procTyCd = procMap.getString("PROC_TY_CD");
 				
-				// 다음 공정이 있으면
-				if(procCdNext != null && !procCdNext.isEmpty()) {
+				if("Process".equals(procTyCd)) {
+					String curCar = inMap.getString(procCd);
 					
-					inMap.remove(procCd);
-					inMap.put(procCdNext, curCar);
-					
-					HMap<String,Object> moveMap = new HMap<>();
-					moveMap.put("BODY_NO", curCar);
-					moveMap.put("PROC_CD", procCdNext);
-					moveList.add(moveMap);
-				}else {
-					HMap<String,Object> idleMap = new HMap<>();
-					idleMap.put("BODY_NO", curCar);
-					idleMap.put("PROC_CD", "IDLE");
-					idleList.add(idleMap);
+					// 다음 공정이 있으면
+					if(procCdNext != null && !procCdNext.isEmpty()) {
+						
+						inMap.remove(procCd);
+						inMap.put(procCdNext, curCar);
+						
+						HMap<String,Object> moveMap = new HMap<>();
+						moveMap.put("BODY_NO", curCar);
+						moveMap.put("PROC_CD", procCdNext);
+						moveList.add(moveMap);
+					}else {
+						HMap<String,Object> idleMap = new HMap<>();
+						idleMap.put("BODY_NO", curCar);
+						idleMap.put("PROC_CD", "IDLE");
+						idleList.add(idleMap);
+					}	
 				}
+				
 				
 			}
 		}
