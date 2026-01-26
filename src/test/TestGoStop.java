@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
@@ -34,8 +35,8 @@ public class TestGoStop {
 		while (true) {
 			System.out.println("command:");
 
-			String cmd = br.readLine();
-
+			String cmd = br.readLine().toUpperCase();
+			
 			switch (cmd) {
 			case "PLC": // PLC 시그널
 				lsSigAll();
@@ -73,10 +74,10 @@ public class TestGoStop {
 		String bodyNo = null;
 
 		System.out.println("procCd:");
-		procCd = br.readLine();
+		procCd = br.readLine().toUpperCase();
 
 		System.out.println("bodyNo:");
-		bodyNo = br.readLine();
+		bodyNo = br.readLine().toUpperCase();
 
 		System.out.println(String.format("PROC_IN = procCd: %s , bodyNO: %s", procCd, bodyNo));
 		inMap.put(procCd, bodyNo);
@@ -102,10 +103,10 @@ public class TestGoStop {
 	// LS 신호 수신시
 	public void lsSig() throws IOException {
 		System.out.println("LS procCd:");
-		String procCd = br.readLine();
+		String procCd = br.readLine().toUpperCase();
 
 		System.out.println("LS flag: 1 or 0");
-		String lsFlag = br.readLine();
+		String lsFlag = br.readLine().toUpperCase();
 
 		boolean isChange = isChangeLsSig(procCd, lsFlag);
 
@@ -117,19 +118,22 @@ public class TestGoStop {
 		}
 
 		goStop("TEST",procCd, lsFlag, moveCatList, idleList);
-
-		System.out.println("============= MOVECAR 전송 리스트===");
-		for (HMap<String, Object> hMap : moveCatList) {
-			System.out.println(hMap.toString());
+		
+		if(moveCatList.size()> 0) {
+			System.out.println("============= MOVECAR 전송 리스트===");
+			for (HMap<String, Object> hMap : moveCatList) {
+				System.out.println(hMap.toString());
+			}
+			System.out.println("=================================");
 		}
-		System.out.println("=================================");
-
-		System.out.println("============= IDLE 전송 리스트======");
-		for (HMap<String, Object> hMap : idleList) {
-			System.out.println(hMap.toString());
+		
+		if(idleList.size()>0) {
+			System.out.println("============= IDLE 전송 리스트======");
+			for (HMap<String, Object> hMap : idleList) {
+				System.out.println(hMap.toString());
+			}
+			System.out.println("=================================");
 		}
-		System.out.println("=================================");
-
 		snapshot();
 	}
 
@@ -147,7 +151,6 @@ public class TestGoStop {
 		List<HMap<String, Object>> idleList = new ArrayList<>(); //
 
 		for (int i = procList.size() - 1; i >= 0; i--) {
-			// char d =newData.charAt(aryProcCdPoint[i]);
 			String strSignal = newData.substring(i, i + 1); // 1자리 데이터 가져옴
 			HMap<String, Object> mapProc = procList.get(i);
 			String strProcCd = mapProc.getString("PROC_CD");
@@ -157,54 +160,58 @@ public class TestGoStop {
 			}
 		}
 
-		System.out.println("=============MOVECAR 전송 리스트");
-		for (HMap<String, Object> hMap : moveCatList) {
-			System.out.println(hMap.toString());
+		if(moveCatList.size()> 0) {
+			System.out.println("============= MOVECAR 전송 리스트===");
+			for (HMap<String, Object> hMap : moveCatList) {
+				System.out.println(hMap.toString());
+			}
+			System.out.println("=================================");
 		}
-		System.out.println("=================================");
-
-		System.out.println("=============IDLE 전송 리스트");
-		for (HMap<String, Object> hMap : idleList) {
-			System.out.println(hMap.toString());
+		
+		if(idleList.size()>0) {
+			System.out.println("============= IDLE 전송 리스트======");
+			for (HMap<String, Object> hMap : idleList) {
+				System.out.println(hMap.toString());
+			}
+			System.out.println("=================================");
 		}
-		System.out.println("=================================");
 
 		snapshot();
 	}
 
 	// ls 변화에 따라 처리
-	public void goStop(String lineCd, String lsProcCd, String lsSig, List<HMap<String, Object>> moveCatList,
+	public synchronized void goStop(String lineCd, String lsProcCd, String lsSig, List<HMap<String, Object>> moveCatList,
 			List<HMap<String, Object>> idleList) {
 
+		
+		
+		// 끝공정부터 돌리는 이유는 다음공정이 비어있는지 않는한 차량이 나갈수 없기때문
 		for (int i = procList.size() - 1; i >= 0; i--) {
 			HMap<String, Object> mapProc = procList.get(i);
-			String strProcCd = mapProc.getString("PROC_CD");
+			String strProcCdPre = mapProc.getString("PROC_CD_PRE"); // 이전공정
+			String strProcCdNext = mapProc.getString("PROC_CD_NEXT"); // 다음공정
+			String strProcCd = mapProc.getString("PROC_CD"); // 현재공정 (이벤트발생 공정)
 			String strProcTyCd = mapProc.getString("PROC_TY_CD"); // Proccess, Buffer
+			String strInoutTy = mapProc.getString("INOUT_TY"); // IN or OUT (ls or PLC 신호가 진입부분에 있는지 진출부분에 있는지)
+			List<HMap<String,Object>> bufferList=null; // 앞 버퍼 리스트
 			
 			// 버퍼공정은 일단 패스 어차피 신호 받는것도 없고 쉬프트 해주어야하기 때문
 			if("Buffer".equals(strProcTyCd)) {
 				continue;
 			}
 			
-			if (mapProc.getString("PROC_CD").equals(lsProcCd) && "1".equals(lsSig)) { // 1= ls 신호 혹은 plc go 신호
-				// 공정 초입 혹은 공정 끝부분 신호에따라 차를 끌어올 대상 공정이 달라져야할듯. 플래그로 현재공정기준 앞으로 밀지
-				// 뒷 공정차를 현재공정으로 끌어올지 고민해봐야함 현재기준은 해당공정 차량을 앞으로 미는 로직임
-				String targetCar = inMap.getString(strProcCd);
+			if (strProcCd.equals(lsProcCd) && "1".equals(lsSig)) { // 1= ls 신호 혹은 plc go 신호
 				
 				// [앞 버퍼구간 처리] 
 				// 현재 공정이 실제공정일때 앞에 버퍼가 있는 구간인지 체크
 				if("Process".equals(strProcTyCd)) {
-					List<HMap<String,Object>> bufferList = countNextBuffers(procList, strProcCd);
-					int buffTotalCar = -1;
+					bufferList = countNextBuffers(procList, strProcCd);
+					//int buffTotalCar = -1;
 					for (int j = bufferList.size()-1; j >= 0; j--) {
 						HMap<String,Object> buff  = bufferList.get(j);
 						
-						// 버퍼구간의 마지막공정일때는 쉬프트 안함 즉, 다음 실제공정에서 차를 끌어가야함
+						// 버퍼구간의 마지막공정일때는 쉬프트 안함 즉, 마지막 버퍼공정 다음 실제공정에서 차를 끌어가야함
 						if(j == bufferList.size()-1) {
-//							String curBuffCar = inMap.getString(buff.getString("PROC_CD"));
-//							if() {
-//								
-//							}
 							continue;
 						}else {
 							String curBuffCar = inMap.getString(buff.getString("PROC_CD")); // 현재 버퍼 공정 조회
@@ -222,72 +229,183 @@ public class TestGoStop {
 							HMap<String, Object> bufData = new HMap<>();
 							bufData.put("BODY_NO", curBuffCar);
 							bufData.put("PROC_CD", buff.getString("PROC_CD_NEXT"));
+							moveCatList.add(bufData);
 						}
 						
 					}
 				}
 				
 				
+				// 공정 초입 혹은 공정 끝부분 신호에따라 차를 끌어올 대상 공정이 달라져야할듯. 플래그로 현재공정기준 앞으로 밀지
+				// 뒷 공정차를 현재공정으로 끌어올지 고민해봐야함 현재기준은 해당공정 차량을 앞으로 미는 로직임
+				String targetCar = null;
+				
+				if(strInoutTy.equals("OUT")) {
+					// 현재차!를 다음공정으로
+					targetCar = inMap.getString(strProcCd);
+				}else if(strInoutTy.equals("IN")) {
+					// 이전차!를 현재공정으로
+					targetCar = inMap.getString(strProcCdPre);
+				}
+				
+				
+				
+				// 공정 진출부에 신호가 오는경우
 				// [현재차 다음공정으로 쉬프트]
-				if (targetCar != null && !targetCar.equals("")) {
+				if ("OUT".equals(strInoutTy)) {
 
-					HMap<String, Object> inData = new HMap<>();
-					inData.put("BODY_NO", targetCar);
-
-					
 					// [라인끝 마지막 공정처리]
 					// 앞공정이 없으면 라인끝 공정으로봄
-					if (mapProc.getString("PROC_CD_NEXT") == null || mapProc.getString("PROC_CD_NEXT").isEmpty()) { 
+					if (strProcCdNext == null || strProcCdNext.isEmpty()) {
 						inMap.remove(strProcCd);
-						inData.put("PROC_CD", "IDLE");
-						idleList.add(inData);
+						HMap<String, Object> idleData = new HMap<>();
+						idleData.put("BODY_NO", targetCar);
+						idleData.put("PROC_CD", "IDLE");
+						idleList.add(idleData);
 						continue;
 					}
-					
-					String nextProcCar = inMap.getString(mapProc.getString("PROC_CD_NEXT")); // 다음 공정 조회
+
+					String nextProcCar = inMap.getString(strProcCdNext); // 다음 공정 조회
 					if (nextProcCar != null && !nextProcCar.isEmpty()) { // 앞 공정에 차량이 있으면 PASS
-						String log = String.format("already car in ( %s:%s to %s:%s )", mapProc.getString("PROC_CD"),
-								inMap.getString(mapProc.getString("PROC_CD")), mapProc.getString("PROC_CD_NEXT"),
-								inMap.getString(mapProc.getString("PROC_CD_NEXT")));
+						String log = String.format("already car in ( %s:%s to %s:%s )", strProcCd,
+								inMap.getString(strProcCd), strProcCdNext, inMap.getString(strProcCdNext));
 						System.out.println(log);
 						continue;
 					}
 					
-//					String preProcCar = inMap.getString(mapProc.getString("PROC_CD_PRE")); // 다음 공정 조회
-//					if (preProcCar == null && preProcCar.isEmpty()) { // 뒷 공정에 차량이 없으면
-//						String log = String.format("already car in ( %s:%s to %s:%s )", mapProc.getString("PROC_CD"),
-//								inMap.getString(mapProc.getString("PROC_CD")), mapProc.getString("PROC_CD_PRE"),
-//								inMap.getString(mapProc.getString("PROC_CD_PRE")));
-//						System.out.println(log);
-//						continue;
-//					}
-
-					inData.put("PROC_CD", mapProc.getString("PROC_CD_NEXT"));
+					
 					inMap.remove(strProcCd);
-					inMap.put(mapProc.getString("PROC_CD_NEXT"), targetCar); // 대상공정으로 바디이관
-
+					inMap.put(strProcCdNext, targetCar); // 대상공정으로 바디이관
+					
+					HMap<String, Object> inData = new HMap<>();
+					inData.put("BODY_NO", targetCar);
+					inData.put("PROC_CD", strProcCdNext);
 					moveCatList.add(inData);
 
-				}
+					// [라인별 맨앞 공정처리]
+					// 이전공정이 없는경우 라인초입 공정임
+					if (strProcCdPre == null || strProcCdPre.isEmpty()) {
+						System.out.println("태그,바코드,브링 처리필요");
+						inMap.put(strProcCd, "CAR_" + bringIndex);
+						HMap<String, Object> bringData = new HMap<>();
+						bringData.put("BODY_NO", "CAR_" + bringIndex);
+						bringData.put("PROC_CD", strProcCd);
+						moveCatList.add(bringData);
+						bringIndex++;
+					}
 
-				
-				// [라인별 맨앞 공정처리]
-				// 이전공정이 없는경우 라인초입 공정임
-				if (mapProc.getString("PROC_CD_PRE") == null || mapProc.getString("PROC_CD_PRE").isEmpty()) {
-					System.out.println("태그,바코드,브링 처리필요");
-					inMap.put(strProcCd, "CAR_" + bringIndex);
-					HMap<String, Object> bringData = new HMap<>();
-					bringData.put("BODY_NO", "CAR_" + bringIndex);
-					bringData.put("PROC_CD", strProcCd);
-					moveCatList.add(bringData);
-					bringIndex++;
+					// 공정 진입부에 신호가 오는경우
+					// [이전차를 이벤트 발생 공정으로 쉬프트]
+				} else if ("IN".equals(strInoutTy)) {
+					
+					String procCar = inMap.getString(strProcCd); // 이동할 공정 조회
+					if (procCar != null && !procCar.isEmpty()) { // 이동할 공정에 차량이 있으면
+						System.out.println("이동할 공정에 차량이 있어 쉬프트 합니다.");
+						shiftLineCar(procList, strProcCd, moveCatList, idleList);
+						//continue;
+					}else {
+						// 현재공정 앞에 버퍼공정이 있을 경우
+						if (bufferList.size() > 0) {
+							String nextProcCar = inMap.getString(strProcCdNext); // 다음 공정 조회
+							if (nextProcCar != null && !nextProcCar.isEmpty()) { // 앞 버퍼에 차량이 있으면
+								System.out.println("버퍼에 차량이 있기에 앞으로 쉬프트가 불가합니다.");
+								continue;
+							}
+							HMap<String, Object> shiftData = new HMap<>();
+							String curCar = inMap.getString(strProcCd);
+							inMap.remove(strProcCd);
+							inMap.put(strProcCdNext, curCar); // 대상공정으로 바디이관
+							shiftData.put("BODY_NO", curCar);
+							shiftData.put("PROC_CD", strProcCdNext);
+							moveCatList.add(shiftData);
+						}
+						
+						// [라인끝 마지막 공정처리]
+						// 앞공정이 없으면 라인끝 공정으로봄
+						if (strProcCdNext == null || strProcCdNext.isEmpty()) {
+							HMap<String, Object> idleData = new HMap<>();
+							idleData.put("BODY_NO", inMap.getString(strProcCd));
+							idleData.put("PROC_CD", "IDLE");
+							inMap.remove(strProcCd);
+							idleList.add(idleData);
+						}
+					}
+					
+					String preProcCar = inMap.getString(strProcCdPre); // 이전 공정 차량 조회
+					if (preProcCar != null && !preProcCar.isEmpty()) { // 이전 공정에 차량이 있으면
+						String log = String.format("empty car in ( %s:%s to %s:%s )", strProcCd,
+								inMap.getString(strProcCd), strProcCdNext, inMap.getString(strProcCdNext));
+						System.out.println(log);
+						inMap.remove(strProcCdPre);
+						inMap.put(strProcCd, targetCar); // 대상공정으로 바디이관
+						
+						HMap<String, Object> inData = new HMap<>();
+						inData.put("BODY_NO", targetCar);
+						inData.put("PROC_CD", strProcCd);
+						moveCatList.add(inData);
+					}
+					
+					// [라인별 맨앞 공정처리]
+					// 이전공정이 없는경우 라인초입 공정임
+					if (strProcCdPre == null || strProcCdPre.isEmpty()) {
+						System.out.println("태그,바코드,브링 처리필요");
+						inMap.put(strProcCd, "CAR_" + bringIndex);
+						HMap<String, Object> bringData = new HMap<>();
+						bringData.put("BODY_NO", "CAR_" + bringIndex);
+						bringData.put("PROC_CD", strProcCd);
+						moveCatList.add(bringData);
+						bringIndex++;
+					}
+
+					
 				}
+				
 			}
 
 		}
 
 	}
 	
+	
+	// 현재공정 기준으로 차량들을 한칸씩 앞으로 이동
+	public void shiftLineCar(List<HMap<String,Object>> procList, String targetProcCd, List<HMap<String,Object>> moveList, List<HMap<String,Object>> idleList) {
+		
+		int index = -999;
+		
+		for (int i = 0; i < procList.size(); i++) {
+			if(procList.get(i).getString("PROC_CD").equals(targetProcCd)) {
+				index = i;
+				break;
+			}
+		}
+		
+		if(index >= 0) {
+			for (int i = procList.size() - 1; i >= index; i--) {
+				HMap<String,Object> procMap = procList.get(i);
+				String procCd = procMap.getString("PROC_CD");
+				String procCdNext = procMap.getString("PROC_CD_NEXT");
+				String curCar = inMap.getString(procCd);
+				
+				// 다음 공정이 있으면
+				if(procCdNext != null && !procCdNext.isEmpty()) {
+					
+					inMap.remove(procCd);
+					inMap.put(procCdNext, curCar);
+					
+					HMap<String,Object> moveMap = new HMap<>();
+					moveMap.put("BODY_NO", curCar);
+					moveMap.put("PROC_CD", procCdNext);
+					moveList.add(moveMap);
+				}else {
+					HMap<String,Object> idleMap = new HMap<>();
+					idleMap.put("BODY_NO", curCar);
+					idleMap.put("PROC_CD", "IDLE");
+					idleList.add(idleMap);
+				}
+				
+			}
+		}
+	}
 	
 	// 현재공정기준으로 내앞에 버퍼 공정이 얼마나 있는지
 	public static List<HMap<String,Object>> countNextBuffers(List<HMap<String,Object>> list, String targetProcCd, int curIndex) {
@@ -390,25 +508,26 @@ public class TestGoStop {
 					+ "    PROC_CD, "
 					+ "    LAG(PROC_CD)  OVER (ORDER BY TO_NUMBER(SORT_NO) ASC) AS PROC_CD_PRE, "
 					+ "    LEAD(PROC_CD) OVER (ORDER BY TO_NUMBER(SORT_NO) ASC) AS PROC_CD_NEXT, "
-					+ "    PROC_TY_CD "
+					+ "    PROC_TY_CD, "
+					+ "    'IN' AS INOUT_TY "
 					+ "FROM TB_BI_PROC "
 					+ "WHERE LINE_CD = 'TEST' "
 					+ "--AND PROC_TY_CD = 'Process' "
 					+ "ORDER BY TO_NUMBER(SORT_NO) ASC";
 			pstmt = conn.prepareStatement(sql);
 			rs = pstmt.executeQuery();
-
+			
+			ResultSetMetaData meta = rs.getMetaData();
+			int colCnt = meta.getColumnCount();
 			// 4. 결과 처리
 			while (rs.next()) {
 				HMap<String, Object> proc = new HMap<>();
-				proc.put("PROC_CD", rs.getString("PROC_CD"));
-				proc.put("PROC_CD_NEXT", rs.getString("PROC_CD_NEXT"));
-				proc.put("PROC_CD_PRE", rs.getString("PROC_CD_PRE"));
-				proc.put("PROC_TY_CD", rs.getString("PROC_TY_CD"));
+				 for (int i = 1; i <= colCnt; i++) {
+				        String colName = meta.getColumnLabel(i); // ⭐ alias 포함
+				        String value   = rs.getString(colName);
+				        proc.put(colName, value);
+				    }
 				procList.add(proc);
-				// String remk = String.format( "procCd:%s, next:%s,
-				// pre:%s",rs.getString("PROC_CD"),rs.getString("PROC_CD_NEXT"),rs.getString("PROC_CD_PRE"));
-				// System.out.println(remk);
 			}
 			for (int i = 0; i < procList.size(); i++) {
 				System.out.println(String.format("map %s, index %s", procList.get(i).toString(), "" + i));
