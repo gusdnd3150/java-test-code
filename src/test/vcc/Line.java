@@ -27,12 +27,9 @@ public class Line {
 	public Proc getProc(String curProcCd) {
 		List<Proc> list = this.procList; // volatile snapshot
 		int curIdx = indexOfProc(list, curProcCd);
-		if (curIdx < 0)
-			return null;
+		if (curIdx < 0)return null;
 		return list.get(curIdx);
 	}
-
-	
 
 	public String getLineCd() {
 		return lineCd;
@@ -49,97 +46,26 @@ public class Line {
 	}
 
 	
+	// PLC or LS 진입신호 수신시 처리
 	public synchronized HMap<String,Object> plcOrLsSignal(String procCd) {
-		HMap<String,Object> returnMap = new HMap<String,Object>();
-		List<HMap<String, Object>> moveCarList = new ArrayList<>();
-		List<HMap<String, Object>> idleList = new ArrayList<>();
 		Proc proc = getProc(procCd);
-		if (proc == null)
-			return null;
-
-		//실공정 뒤에 버퍼구간 체크 후 자동 쉬프트
-		bufferShift(procCd, moveCarList, idleList);
-		// 현재공정 확인 후 차량이 있을경우 앞으로 쉬프트
-		procShift(procCd, moveCarList, idleList);
-
-		// [라인끝 마지막 공정처리]
-		// 앞공정이 없으면 라인끝 공정으로봄
-		Proc nextProc = nextProc(proc.getProcCd());
-		if (nextProc == null) {
-			HMap<String, Object> idleData = new HMap<>();
-			idleData.put("BODY_NO", proc.getInBodyNo());
-			idleData.put("PROC_CD", "IDLE");
-			idleList.add(idleData);
-			proc.procOut();
-		}
-
-		Proc preProc = preProc(proc.getProcCd());
-		// [라인별 맨앞 공정처리]
-		// 이전공정이 없는경우 라인초입 공정임
-		if (preProc == null) {
-			if(proc.hasCar()) {
-				System.out.println("현재공정에 차가 있어 진입할 수 없습니다.");
-			}else {
-				System.out.println("태그,바코드,브링 처리필요");
-				bringIndex++;
-				HMap<String, Object> bringData = new HMap<>();
-				String tempBody = "CAR_" + bringIndex;
-				bringData.put("BODY_NO", tempBody);
-				bringData.put("PROC_CD", proc.getProcCd());
-				moveCarList.add(bringData);
-				proc.procIn(tempBody);		
-			}
-
-		} else {
-			
-			if (preProc.hasCar()) { // 이전 공정에 차량이 있으면
-				
-				if(proc.hasCar()) {
-					System.out.println("현재공정에 차가 있어 진입할 수 없습니다.");
-					
-				}else {
-					HMap<String, Object> inData = new HMap<>();
-					String bodyNo = preProc.getInBodyNo();
-					preProc.procOut();
-					proc.procIn(bodyNo);
-
-					inData.put("BODY_NO", bodyNo);
-					inData.put("PROC_CD", proc.getProcCd());
-					moveCarList.add(inData);					
-				}
-
-			}
-		}
-		returnMap.put("MOVE_CAR", moveCarList);
-		returnMap.put("MOVE_IDLE", idleList);
-		lineSnapShot();
-		return returnMap;
-	}
-	
-	
-	public synchronized HMap<String,Object> procIn(String procCd) {
-		HMap<String,Object> returnMap = new HMap<String,Object>();
-		List<HMap<String, Object>> moveCarList = new ArrayList<>();
-		List<HMap<String, Object>> idleList = new ArrayList<>();
-		Proc proc = getProc(procCd);
-		if (proc == null)
-			return null;
-
-		//실공정 뒤에 버퍼구간 체크 후 자동 쉬프트
-		bufferShift(procCd, moveCarList, idleList);
+		if (proc == null)return null;
+		MoveContext ctx = new MoveContext();
 		
-		// 현재공정 확인 후 차량이 있을경우 앞으로 쉬프트
-		procShift(procCd, moveCarList, idleList);
+		// 1. 실공정 뒤에 버퍼구간 체크 후 자동 쉬프트
+		bufferShift(procCd, ctx);
+		
+		// 2. 현재공정 확인 후 차량이 있을경우 앞으로 쉬프트
+		procShift(procCd, ctx);
 
 		// [라인끝 마지막 공정처리]
 		// 앞공정이 없으면 라인끝 공정으로봄
 		Proc nextProc = nextProc(proc.getProcCd());
 		if (nextProc == null) {
-			HMap<String, Object> idleData = new HMap<>();
-			idleData.put("BODY_NO", proc.getInBodyNo());
-			idleData.put("PROC_CD", "IDLE");
-			idleList.add(idleData);
-			proc.procOut();
+			if (proc.hasCar()) {
+			    ctx.addIdle(proc.getInBodyNo());
+			    proc.procOut();
+			}
 		}
 
 		Proc preProc = preProc(proc.getProcCd());
@@ -151,14 +77,12 @@ public class Line {
 			}else {
 				System.out.println("태그,바코드,브링 처리필요");
 				bringIndex++;
-				HMap<String, Object> bringData = new HMap<>();
 				String tempBody = "CAR_" + bringIndex;
-				bringData.put("BODY_NO", tempBody);
-				bringData.put("PROC_CD", proc.getProcCd());
-				moveCarList.add(bringData);
+				ctx.addMove(tempBody, proc.getProcCd());
 				proc.procIn(tempBody);		
 			}
 
+			// 이전공정이 존재하는경우
 		} else {
 			
 			if (preProc.hasCar()) { // 이전 공정에 차량이 있으면
@@ -167,22 +91,16 @@ public class Line {
 					System.out.println("현재공정에 차가 있어 진입할 수 없습니다.");
 					
 				}else {
-					HMap<String, Object> inData = new HMap<>();
 					String bodyNo = preProc.getInBodyNo();
+					ctx.addMove(bodyNo, proc.getProcCd());
 					preProc.procOut();
 					proc.procIn(bodyNo);
-
-					inData.put("BODY_NO", bodyNo);
-					inData.put("PROC_CD", proc.getProcCd());
-					moveCarList.add(inData);					
 				}
 
 			}
 		}
-		returnMap.put("MOVE_CAR", moveCarList);
-		returnMap.put("MOVE_IDLE", idleList);
 		lineSnapShot();
-		return returnMap;
+		return ctx.resultData();
 	}
 	
 
@@ -273,7 +191,9 @@ public class Line {
 		return "Process".equals(ty) || "Buffer".equals(ty);
 	}
 	
-	private void procShift(String procCd ,List<HMap<String,Object>> moveList,List<HMap<String,Object>> idleList) {
+	
+	// 현재공정 실차 확인 후 있으면 다음공정으로 쉬프트
+	private void procShift(String procCd ,MoveContext ctx) {
 		Proc proc = getProc(procCd);
 		if (proc.hasCar()) { // 현재 공정에 차량이 있으면
 			System.out.println("현재 공정에 차량이 있어 쉬프트 합니다.");
@@ -281,25 +201,62 @@ public class Line {
 			// 뒷공정 신호가 누락될 경우 필요할듯
 			Proc nextProc = nextProc(proc.getProcCd());
 			if (nextProc != null) {
-				
 				if(!nextProc.hasCar()) {
 					String curBody = proc.getInBodyNo();
 					HMap<String, Object> shiftData = new HMap<>();
 					proc.procOut();
 					nextProc.procIn(curBody);
-					
-					shiftData.put("BODY_NO", curBody);
-					shiftData.put("PROC_CD", nextProc.getProcCd());
-					moveList.add(shiftData);
+					ctx.addMove(curBody, nextProc.getProcCd());
 				}
 			}
 		}
 	}
 	
+	// 현재공정 포함, 이전 공정을 N개까지 확인하며(총 N개 또는 N+1 정책 선택)
+	// "각 공정의 차를 다음 공정으로 1칸" 쉬프트
+	private void procShift(String procCd, int prevCount, MoveContext ctx) {
+	    if (prevCount < 0) prevCount = 0;
+
+	    // 0번째 = 현재공정, 1번째=이전1, ... prevCount번째=이전N
+	    List<Proc> targets = new ArrayList<>();
+	    Proc cur = getProc(procCd);
+	    if (cur == null) return;
+
+	    targets.add(cur);
+	    Proc p = cur;
+	    for (int i = 0; i < prevCount; i++) {
+	        p = preProc(p.getProcCd());
+	        if (p == null) break;
+	        targets.add(p);
+	    }
+
+	    // ✅ 뒤에서 앞으로(현재에 가까운 공정부터) 쉬프트
+	    for (int i = 0; i < targets.size(); i++) {
+	        Proc src = targets.get(i); // i=0이 현재, i가 커질수록 더 앞공정
+	        shiftOneStep(src, ctx);
+	    }
+	}
+	
+	/** 공정 하나를 다음 공정으로 1칸 쉬프트 (가능할 때만) */
+	private void shiftOneStep(Proc src, MoveContext ctx) {
+	    if (src == null || !src.hasCar()) return;
+
+	    Proc dst = nextProc(src.getProcCd());
+	    if (dst == null) return;          // 라인 끝이면 여기서 처리 안 함(별도 IDLE 정책)
+	    if (dst.hasCar()) return;         // 다음 공정이 차 있으면 못 민다
+
+	    String body = src.getInBodyNo();
+	    if (body == null || body.isEmpty()) return;
+
+	    src.procOut();
+	    dst.procIn(body);
+	    ctx.addMove(body, dst.getProcCd());
+	}
+	
 	
 	
 	// 프로세스 공정 뒤에 버퍼구간 자동 채움
-	private void bufferShift(String procCd ,List<HMap<String,Object>> moveList,List<HMap<String,Object>> idleList) {
+	private void bufferShift(String procCd ,MoveContext ctx) {
 		List<Proc> buffList = selectNextBuffers(procCd);
 		for (int j = buffList.size() - 1; j >= 0; j--) {
 			Proc curProc = buffList.get(j);
@@ -311,13 +268,9 @@ public class Line {
 					continue;
 				} else {
 					String bodyNo = preProc.getInBodyNo();
+					ctx.addMove(bodyNo, curProc.getProcCd());
 					curProc.procIn(bodyNo);
 					preProc.procOut();
-
-					HMap<String, Object> bufData = new HMap<>();
-					bufData.put("BODY_NO", bodyNo);
-					bufData.put("PROC_CD", curProc.getProcCd());
-					moveList.add(bufData);
 				}
 			}
 		}
@@ -333,7 +286,7 @@ public class Line {
 		}
 
 		for (int i = index + 1; i < list.size(); i++) {
-			if ("Buffer".equals(list.get(i).getProcCd())) {
+			if ("Buffer".equals(list.get(i).getProcTyCd())) {
 				bufferList.add(list.get(i));
 			} else {
 				break; // 연속이 끊김
