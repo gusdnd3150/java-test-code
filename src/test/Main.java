@@ -20,7 +20,8 @@ public class Main {
 	public static void main(String[] args) throws InterruptedException, IOException {
 		
 		
-		new TestGoStop();
+		//new TestGoStop();
+		new TestGoStopClass();
 		
     }
 

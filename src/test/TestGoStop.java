@@ -180,8 +180,6 @@ public class TestGoStop {
 	// ls 변화에 따라 처리
 	public synchronized void goStop(String lineCd, String lsProcCd, String lsSig, List<HMap<String, Object>> moveCatList,
 			List<HMap<String, Object>> idleList) {
-
-		
 		
 		// 끝공정부터 돌리는 이유는 다음공정이 비어있는지 않는한 차량이 나갈수 없기때문
 		for (int i = procList.size() - 1; i >= 0; i--) {
