@@ -1,6 +1,9 @@
 package test;
 
 import test.LS.LsXgtPacket;
+import test.LS.ReadBlockVo;
+import test.LS.ReadResponseVo;
+import test.LS.XgtResponseVo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,13 +30,23 @@ public class Main {
 		//new TestGoStopClass();
 
 		LsXgtPacket packet = new LsXgtPacket();
-		byte[] frameBytes = packet.readReqFrame("%MB200",1, 10);
+		byte[] frameBytes = packet.readReqFrame("%MB200",1, 20);
 		System.out.println("==========================: = "+Arrays.toString(frameBytes));
-		String testdata = "TFNJUy1YR1QAAAQBoBEBABYAAChVABQAAAAAAAEACgBUVFRUVFRUVFRU";
+		String testdata = "TFNJUy1YR1QAAAQBoBEBACAAADJVABQAAAAAAAEAFABUVFRUVFRUVFRUMDAwMDAxICAgIA==";
 		byte[] data = Base64.getDecoder().decode(testdata);
 
-		packet.getResponseData(data);
-		System.out.println("==========================: = "+Arrays.toString(data));
+		XgtResponseVo res = packet.getResponseData(data);
+		if(res instanceof ReadResponseVo){
+			ReadResponseVo dataVo = (ReadResponseVo) res;
+			for (ReadBlockVo datum : dataVo.getBlocks()) {
+				System.out.println("==========================: = "+datum.getDataLen());
+				System.out.println("==========================: = "+Arrays.toString(datum.getData()));
+			}
+		}else{
+			System.out.println("==========================: = "+res.toString());
+			System.out.println("==========================: = "+Arrays.toString(data));
+		}
+
     }
 
 
