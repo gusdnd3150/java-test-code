@@ -31,8 +31,8 @@ public class McPacket {
         short reqDataLen = 12;
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            writeFixedHeader(out, reqDataLen);
-            out.write(new byte[]{0x10, 0x00});                // CPU Monitor Timer
+            writeFixedHeader(out, reqDataLen); // 9 bytes
+            out.write(new byte[]{0x10, 0x00});                // CPU Monitor Timer  - 여기까지가 해더
             out.write(CMD_READ);                               // Command
             out.write(subCmd);                                 // Subcommand
             out.write(intTo3BytesLE(dev.getDeviceNumber()));   // Device No. (3bytes LE)
@@ -45,19 +45,19 @@ public class McPacket {
     }
 
     /** 워드 쓰기 요청 패킷 생성 */
-    public byte[] buildWordWriteRequest(String address, int[] wordValues) {
-        McDeviceAddress dev  = McDeviceAddress.parse(address);
-        byte[]          data = packWordData(wordValues);
+    public byte[] buildWordWriteRequest(String address, byte[] data) {
+        McDeviceAddress dev = McDeviceAddress.parse(address);
         short reqDataLen = (short) (12 + data.length);
+        int   points     = data.length / 2;
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             writeFixedHeader(out, reqDataLen);
-            out.write(new byte[]{0x10, 0x00});                // CPU Monitor Timer
+            out.write(new byte[]{0x10, 0x00});                // CPU Monitor Timer  여기까지가 해더
             out.write(CMD_WRITE);                              // Command
             out.write(SUBCMD_WORD);                            // Subcommand
             out.write(intTo3BytesLE(dev.getDeviceNumber()));   // Device No. (3bytes LE)
             out.write(dev.getDeviceCode() & 0xFF);             // Device Code (1byte)
-            out.write(shortToBytes((short) wordValues.length, true)); // Number of Points (LE)
+            out.write(shortToBytes((short) points, true));     // Number of Points (LE)
             out.write(data);                                   // Word data (points × 2bytes)
             return out.toByteArray();
         } catch (IOException e) {
@@ -73,7 +73,7 @@ public class McPacket {
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             writeFixedHeader(out, reqDataLen);
-            out.write(new byte[]{0x10, 0x00});                // CPU Monitor Timer
+            out.write(new byte[]{0x10, 0x00});                // CPU Monitor Timer  여기까지가 해더
             out.write(CMD_WRITE);                              // Command
             out.write(SUBCMD_BIT);                             // Subcommand
             out.write(intTo3BytesLE(dev.getDeviceNumber()));   // Device No. (3bytes LE)
@@ -100,13 +100,15 @@ public class McPacket {
 
     /**
      * 워드 읽기 응답 파싱
-     * [0-8] 고정헤더 echo / [7-8] 응답 데이터 길이 / [9-10] End code / [11+] 워드 데이터
+     * [7-8] 응답 데이터 길이(LE) / [9-10] End code / [11+] 워드 데이터
+     * points = (responseDataLen - 2) / 2  (End code 2bytes 제외)
      */
-    public McWordReadResponseVo parseWordReadResponse(byte[] resBytes, int points) {
+    public McWordReadResponseVo parseWordReadResponse(byte[] resBytes) {
         int endCode = readLE16(resBytes, 9);
         if (endCode != 0) {
             return new McWordReadResponseVo(endCode);
         }
+        int points       = (readLE16(resBytes, 7) - 2) / 2;
         int[] wordValues = new int[points];
         for (int i = 0; i < points; i++) {
             wordValues[i] = readLE16(resBytes, 11 + i * 2);
@@ -171,16 +173,6 @@ public class McPacket {
     /** 2bytes LE → int (응답 파싱용) */
     private static int readLE16(byte[] bytes, int offset) {
         return (bytes[offset] & 0xFF) | ((bytes[offset + 1] & 0xFF) << 8);
-    }
-
-    /** int[] → byte[] (워드 직렬화, 각 워드 2bytes LE) */
-    private static byte[] packWordData(int[] wordValues) {
-        byte[] data = new byte[wordValues.length * 2];
-        for (int i = 0; i < wordValues.length; i++) {
-            data[i * 2]     = (byte) (wordValues[i] & 0xFF);
-            data[i * 2 + 1] = (byte) ((wordValues[i] >> 8) & 0xFF);
-        }
-        return data;
     }
 
     /**

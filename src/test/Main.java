@@ -68,7 +68,7 @@ public class Main {
 			0x00, 0x00,                          // End code (성공)
 			0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05, 0x00  // D100~D104
 		};
-		McWordReadResponseVo wordRes = mc.parseWordReadResponse(wordReadRes, 5);
+		McWordReadResponseVo wordRes = mc.parseWordReadResponse(wordReadRes);
 		System.out.println("[MC] 워드 읽기 성공: " + wordRes.isSuccess());
 		System.out.println("[MC] 워드 값: " + Arrays.toString(wordRes.getWordValues())); // [1, 2, 3, 4, 5]
 
@@ -89,8 +89,8 @@ public class Main {
 		System.out.println("[MC] 비트 읽기 성공: " + bitRes.isSuccess());
 		System.out.println("[MC] 비트 값: " + Arrays.toString(bitRes.getBitValues())); // [true, false, true, true]
 
-		// 5. 워드 쓰기 요청 패킷 생성 (D200 에 100, 200 쓰기)
-		byte[] wordWriteReq = mc.buildWordWriteRequest("D*200", new int[]{100, 200});
+		// 5. 워드 쓰기 요청 패킷 생성 (D200 에 100, 200 쓰기 → 각 워드 2bytes LE)
+		byte[] wordWriteReq = mc.buildWordWriteRequest("D*200", new byte[]{0x64, 0x00, (byte)0xC8, 0x00});
 		System.out.println("[MC] 워드 쓰기 요청: " + Arrays.toString(wordWriteReq));
 
 		// 6. 비트 쓰기 요청 패킷 생성 (X0 부터 4점 ON/OFF/ON/ON)
