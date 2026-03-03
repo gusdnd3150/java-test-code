@@ -8,20 +8,13 @@ import test.MC.McBitReadResponseVo;
 import test.MC.McPacket;
 import test.MC.McWordReadResponseVo;
 import test.MC.McWriteResponseVo;
+import test.Utilitys.HMap;
+import test.ifPacket.InterfaceHandler;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class Main {
@@ -29,11 +22,17 @@ public class Main {
 	public static HMap<String,List<HMap<String,Object>>> inBarcodeMap = new HMap<String,List<HMap<String,Object>>>();	//진입라인정보
 
 	public static void main(String[] args) throws InterruptedException, IOException {
+		HMap<String,Object> testParam = new HMap<String,Object>();
+		testParam.put("BODY_NO","7WX 000001");
+		testParam.put("MES_PROD_SEQ","12345678901234567");
 
-		// ── LS XGT 사용 예 ────────────────────────────────────────────────────
 		//new TestGoStop();
 		//new TestGoStopClass();
 
+		InterfaceHandler.sendIfData("ss","ACDB",testParam);
+
+
+		// ── LS XGT 사용 예 ────────────────────────────────────────────────────
 		LsXgtPacket packet = new LsXgtPacket();
 		byte[] frameBytes = packet.readReqFrame("%MB200",1, 20);
 		System.out.println("==========================: = "+Arrays.toString(frameBytes));

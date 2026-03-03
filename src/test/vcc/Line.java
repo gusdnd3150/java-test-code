@@ -4,10 +4,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.sun.xml.internal.bind.v2.runtime.unmarshaller.LocatorEx.Snapshot;
-
-import test.HMap;
-import test.TestGoStopClass;
+import test.Utilitys.HMap;
+import test.goStop.TestGoStopClass;
 import test.Utility;
 
 public class Line {

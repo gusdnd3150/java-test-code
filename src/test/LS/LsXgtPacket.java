@@ -69,10 +69,9 @@ public class LsXgtPacket {
         short reqInvokeId  = (short) invokeId;
         short reqLength    = (short) length;
         short blockCnt     = 1;
-        ByteArrayOutputStream outBuf = new ByteArrayOutputStream();
 
         System.out.println(String.format("addrLen:%s, reqBodyLength:%s, reqInvokeId:%s, reqLength:%s", addrLen, reqBodyLength, reqInvokeId, reqLength));
-        try {
+        try(ByteArrayOutputStream outBuf = new ByteArrayOutputStream()) {
             // 헤더
             outBuf.write("LSIS-XGT".getBytes());
             outBuf.write(new byte[]{0x00, 0x00});
@@ -95,8 +94,6 @@ public class LsXgtPacket {
             return outBuf.toByteArray();
         } catch (Exception e) {
             throw new RuntimeException(e);
-        } finally {
-            outBuf.close();
         }
     }
 
