@@ -61,4 +61,15 @@ public class InterfaceHandler {
         }
         return new byte[0];
     }
+
+    public static byte[] processMsg(HMap<String, Object> flag) {
+        try {
+            String strMesProdSeq = flag.getString("MES_PROD_SEQ");
+            String strMsgId = flag.getString("MSG_ID");
+            return (strMesProdSeq).getBytes();
+        } catch (Exception e) {
+            System.out.println("processB exception :: " + flag.toString());
+        }
+        return new byte[0];
+    }
 }
