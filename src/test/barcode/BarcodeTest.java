@@ -14,154 +14,153 @@ import java.util.stream.Collectors;
 public class BarcodeTest {
     BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 
-	HMap<String,Object> lastBarcode = new HMap<>(); // 실시간 공정별 하나
-	HMap<String,List<HMap<String,Object>>> unScopedProcBarcodeList = new HMap<>(); // 공정별 3개 저장
-	JdbcTest database;
+    HMap<String,Object> lastBarcode = new HMap<>(); // 실시간 공정별 하나
+    HMap<String,List<HMap<String,Object>>> unScopedProcBarcodeList = new HMap<>(); // 공정별 3개 저장
+    JdbcTest database;
+    int recoverChkCnt = 3;
+    int scopeCnt = 3;
 
     public BarcodeTest() throws Exception {
-
-		database = new JdbcTest();
-		//hasTargetCarWithinNextScope(lastBcdData.getString(strProcCd),strCurMesProdSeq,iniManager.bcdScopeChkCnt)
-
+        database = new JdbcTest();
         while (true) {
-			//System.out.println("COMMAND:::");
-			//String cmd = br.readLine().toUpperCase();
-
-			String mesProdSeq = params("MES_PROD_SEQ");
-			//String procCd = params("PROC_CD");
-			String procCd = "TR01B1";
-			logicBarcode(procCd,mesProdSeq);
-//			switch (cmd) {
-//			case "BCD": // PLC 시그널
-//
-//			    break;
-//			case "X":
-//				return;
-//			}
-		}
+            String mesProdSeq = params("MES_PROD_SEQ");
+            String procCd = "TR01B1";
+            logicBarcode(procCd, mesProdSeq);
+        }
     }
 
+    /** 테스트용 생성자 - while 루프 없이 로직만 사용 */
+    BarcodeTest(JdbcTest mockDatabase) {
+        this.database = mockDatabase;
+    }
 
-	public void logicBarcode(String procCd,String mesProdSeq) throws Exception {
-		boolean rslt = hasTargetCarWithinNextScope(lastBarcode.getString(procCd),mesProdSeq,4);
-		if(rslt){
-			System.out.println(String.format("logicBarcode ::send [MOVE_CAR] mesProdSeq=%s , procCd=%s", mesProdSeq,procCd));
-			lastBarcode.put(procCd, mesProdSeq); // 마지막 진입 데이터 저장
-			clearScopeData(procCd); // 정상처리시 초기화
-		}else{
-			System.out.println(String.format("logicBarcode :: none scope !!!!! %s, procCd=%s", mesProdSeq,procCd));
-			addUnScopeData(procCd,mesProdSeq); // 이상데이터 공정별 3개까지 누적 체크
+    public void logicBarcode(String procCd, String mesProdSeq) throws Exception {
+        boolean scopeOk = hasTargetCarWithinNextScope(lastBarcode.getString(procCd), mesProdSeq, scopeCnt);
+        tryCommitCar(procCd, mesProdSeq, scopeOk);
 
-			//// !!! 여기에 3대분을 가지고 확인을 해야함
-			boolean chkRslt = checkAndRecoverFromUnScopeData(procCd,lastBarcode.getString(procCd));
-			if(chkRslt){
-				System.out.println(String.format("logicBarcode chkRslt true ::send [MOVE_CAR] mesProdSeq=%s , procCd=%s", mesProdSeq,procCd));
-				lastBarcode.put(procCd, mesProdSeq); // 마지막 진입 데이터 저장
-			}
-		}
+        List<HMap<String,Object>> unScope = unScopedProcBarcodeList.get(procCd);
+        if (unScope != null) {
+            System.out.printf("[logicBarcode] unScope size=%d%n", unScope.size());
+        }
+    }
 
-		if (unScopedProcBarcodeList.get(procCd) != null) {
-			System.out.println(String.format("unScopedProcBarcodeList size  %s", unScopedProcBarcodeList.get(procCd).size()));
-		}
-	}
+    private boolean tryCommitCar(String procCd, String mesProdSeq, boolean scopeOk) {
+        if (scopeOk) {
+            log(procCd, mesProdSeq, "scope OK → MOVE_CAR");
+            commitCar(procCd, mesProdSeq);
+            return true;
+        }
 
-	
-	public String params(String type) throws IOException {
-		System.out.println(type.toUpperCase()+"=");
-		return br.readLine();
-	}
+        log(procCd, mesProdSeq, "scope MISS → unScope 누적");
+        addUnScopeData(procCd, mesProdSeq);
 
+        if (checkAndRecoverFromUnScopeData(procCd, lastBarcode.getString(procCd))) {
+            log(procCd, mesProdSeq, "recover OK → MOVE_CAR");
+            commitCar(procCd, mesProdSeq);
+            return true;
+        }
+        return false;
+    }
 
-	public boolean checkAndRecoverFromUnScopeData(String procCd, String lastMesSeq){
-		List<HMap<String,Object>> unScopeData = unScopedProcBarcodeList.get(procCd);
-		if (unScopeData == null || unScopeData.size() != 3) return false;
+    private void commitCar(String procCd, String mesProdSeq) {
+        lastBarcode.put(procCd, mesProdSeq);
+        clearScopeData(procCd);
+    }
 
-		// 들어온 순서 그대로 유지
-		List<String> storedSeqs = unScopeData.stream()
-			.map(s -> s.getString("MES_PROD_SEQ"))
-			.collect(Collectors.toList());
+    public String params(String type) throws IOException {
+        System.out.println(type.toUpperCase() + "=");
+        return br.readLine();
+    }
 
-		// lastMesSeq 이후 최대 20대 조회
-		String query =
-			"SELECT MES_PROD_SEQ FROM ( " +
-			"    SELECT ROWNUM AS NUM, A.* " +
-			"    FROM ( " +
-			"        SELECT MES_PROD_SEQ " +
-			"        FROM TB_IF_MES_PROD " +
-			"        WHERE MES_PROD_SEQ > ? " +
-			"        AND CAR_CD NOT IN ('888') " +
-			"        ORDER BY MES_PROD_SEQ ASC " +
-			"    ) A " +
-			") WHERE NUM <= 20";
+    public boolean checkAndRecoverFromUnScopeData(String procCd, String lastMesSeq) {
+        List<HMap<String,Object>> unScopeData = unScopedProcBarcodeList.get(procCd);
+        if (unScopeData == null || unScopeData.size() < recoverChkCnt) return false;
 
-		List<HMap<String,Object>> checkMes = database.selectData(query, lastMesSeq);
+        // 들어온 순서 그대로 유지 - 스캔 순서가 DB 연속 순서와 일치해야 함
+        List<String> storedSeqs = unScopeData.stream()
+            .map(s -> s.getString("MES_PROD_SEQ"))
+            .collect(Collectors.toList());
 
-		List<String> dbSeqs = checkMes.stream()
-			.map(s -> s.getString("MES_PROD_SEQ"))
-			.collect(Collectors.toList());
+        // lastMesSeq 이후 최대 20대 조회
+        String query =
+            "SELECT MES_PROD_SEQ FROM ( " +
+            "    SELECT ROWNUM AS NUM, A.* " +
+            "    FROM ( " +
+            "        SELECT MES_PROD_SEQ " +
+            "        FROM TB_IF_MES_PROD " +
+            "        WHERE MES_PROD_SEQ > ? " +
+            "        AND CAR_CD NOT IN ('888') " +
+            "        ORDER BY MES_PROD_SEQ ASC " +
+            "    ) A " +
+            ") WHERE NUM <= 20";
 
-		// 20대 안에서 storedSeqs[0] 위치를 찾아 3대 연속 일치 확인
-		int startIdx = dbSeqs.indexOf(storedSeqs.get(0));
-		if (startIdx == -1 || startIdx + 2 >= dbSeqs.size()) {
-			System.out.println("checkAndRecover mismatch :: stored=" + storedSeqs + " :: db=" + dbSeqs);
-			return false;
-		}
+        List<String> dbSeqs = database.selectData(query, lastMesSeq).stream()
+            .map(s -> s.getString("MES_PROD_SEQ"))
+            .collect(Collectors.toList());
 
-		for (int i = 0; i < 3; i++) {
-			if (!storedSeqs.get(i).equals(dbSeqs.get(startIdx + i))) {
-				System.out.println("checkAndRecover mismatch :: stored=" + storedSeqs + " :: db=" + dbSeqs);
-				return false;
-			}
-		}
-		return true;
-	}
+        // 20대 안에서 첫 번째 stored SEQ 위치를 찾아 recoverChkCnt 대 연속 일치 확인
+        int startIdx = dbSeqs.indexOf(storedSeqs.get(0));
+        if (startIdx == -1 || startIdx + recoverChkCnt > dbSeqs.size()) {
+            System.out.println("[checkAndRecover] FAIL :: stored=" + storedSeqs + " :: db=" + dbSeqs);
+            return false;
+        }
 
-	public synchronized void clearScopeData(String procCd){
-		unScopedProcBarcodeList.remove(procCd); // 정상처리시 초기화
-	}
+        for (int i = 0; i < recoverChkCnt; i++) {
+            if (!storedSeqs.get(i).equals(dbSeqs.get(startIdx + i))) {
+                System.out.println("[checkAndRecover] FAIL :: stored=" + storedSeqs + " :: db=" + dbSeqs);
+                return false;
+            }
+        }
+        System.out.println("[checkAndRecover] OK :: stored=" + storedSeqs);
+        return true;
+    }
 
-	public synchronized void addUnScopeData(String procCd, String mesProdSeq){
-		List<HMap<String,Object>> unScopeData = unScopedProcBarcodeList.get(procCd);
-		HMap<String,Object> unScoped = new HMap<>();
-		unScoped.put("MES_PROD_SEQ", mesProdSeq);
-		if (unScopeData == null) {
-			List<HMap<String,Object>> procList = new ArrayList<>();
+    public synchronized void clearScopeData(String procCd) {
+        unScopedProcBarcodeList.remove(procCd);
+    }
 
-			procList.add(unScoped);
-			unScopedProcBarcodeList.put(procCd, procList);
-			return;
-		}
-		if (unScopeData.size() >= 3){ // 3개 까지만 저장
-			unScopeData.remove(0);
-		}
-		unScopeData.add(unScoped);
-	}
+    public synchronized void addUnScopeData(String procCd, String mesProdSeq) {
+        List<HMap<String,Object>> unScopeData = unScopedProcBarcodeList.get(procCd);
+        HMap<String,Object> unScoped = new HMap<>();
+        unScoped.put("MES_PROD_SEQ", mesProdSeq);
+        if (unScopeData == null) {
+            List<HMap<String,Object>> procList = new ArrayList<>();
+            procList.add(unScoped);
+            unScopedProcBarcodeList.put(procCd, procList);
+            return;
+        }
+        if (unScopeData.size() >= recoverChkCnt) {
+            unScopeData.remove(0);
+        }
+        unScopeData.add(unScoped);
+    }
 
-	public boolean hasTargetCarWithinNextScope(String lastMesSeq,String nextMesSeq, int scope) throws Exception {
-		if(scope == 0) return true; // 별도의 설정값이 없을 경우
-		if(lastMesSeq == null) return true; // 프로그램 재기동시 초기화
-		String query =
-			"SELECT M.* FROM ( " +
-			"    SELECT ROWNUM AS NUM, A.* " +
-			"    FROM ( " +
-			"        SELECT MES_PROD_SEQ, BODY_NO, DP_CMT " +
-			"        FROM TB_IF_MES_PROD " +
-			"        WHERE MES_PROD_SEQ > ? " +
-			"        AND CAR_CD NOT IN ('888') " +
-			"        ORDER BY MES_PROD_SEQ ASC " +
-			"    ) A " +
-			"    WHERE 1=1 " +
-			") M " +
-			"WHERE 1=1 " +
-			"AND NUM <= ? " +
-			"AND MES_PROD_SEQ = ?";
-		List<HMap<String,Object>> scopeCar =  database.selectData(query,lastMesSeq,scope,nextMesSeq);
-		if(scopeCar.size() > 0) {
-			System.out.println(String.format("hasTargetCarWithinNextScope :: :: scopeCar=%s", scopeCar.get(0)));
-			return true;
-		}else{
-			System.out.println(String.format("hasTargetCarWithinNextScope :: :: NONE scopeCar=%s",""));
-		}
-		return false;
-	}
+    public boolean hasTargetCarWithinNextScope(String lastMesSeq, String nextMesSeq, int scope) {
+        if (scope == 0) return true;      // 별도의 설정값이 없을 경우
+        if (lastMesSeq == null) return true; // 프로그램 재기동시 초기화
+        String query =
+            "SELECT M.* FROM ( " +
+            "    SELECT ROWNUM AS NUM, A.* " +
+            "    FROM ( " +
+            "        SELECT MES_PROD_SEQ, BODY_NO, DP_CMT " +
+            "        FROM TB_IF_MES_PROD " +
+            "        WHERE MES_PROD_SEQ > ? " +
+            "        AND CAR_CD NOT IN ('888') " + // 999도 있으나, 테스트때문에
+            "        ORDER BY MES_PROD_SEQ ASC " +
+            "    ) A " +
+            ") M " +
+            "WHERE NUM <= ? " +
+            "AND MES_PROD_SEQ = ?";
+        List<HMap<String,Object>> scopeCar = database.selectData(query, lastMesSeq, scope, nextMesSeq);
+        if (!scopeCar.isEmpty()) {
+            System.out.println("[hasTargetCar] OK :: " + scopeCar.get(0));
+            return true;
+        }
+        System.out.println("[hasTargetCar] MISS :: seq=" + nextMesSeq + ", last=" + lastMesSeq + ", scope=" + scope);
+        return false;
+    }
+
+    private void log(String procCd, String mesProdSeq, String msg) {
+        System.out.printf("[logicBarcode] procCd=%s seq=%s → %s%n", procCd, mesProdSeq, msg);
+    }
 }

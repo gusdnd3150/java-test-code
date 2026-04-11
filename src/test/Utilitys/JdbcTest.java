@@ -19,6 +19,9 @@ public class JdbcTest {
         conn = DriverManager.getConnection(url, user, pass);
     }
 
+    /** 테스트용 mock 생성자 - DB 연결 없이 사용 */
+    protected JdbcTest(boolean mock) {}
+
 //    // 파라미터 없음
 //    List<HMap<String, Object>> result1 = db.selectData(
 //            "SELECT * FROM TB_BI_PROC WHERE 1=1"
