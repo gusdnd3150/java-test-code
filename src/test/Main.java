@@ -12,6 +12,7 @@ import test.Utilitys.HMap;
 import test.Utilitys.JdbcTest;
 import test.barcode.BarcodeTest;
 import test.ifPacket.InterfaceHandler;
+import test.time.TimeEvent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,14 +25,15 @@ public class Main {
 	public static HMap<String,List<HMap<String,Object>>> inBarcodeMap = new HMap<String,List<HMap<String,Object>>>();	//진입라인정보
 
 	public static void main(String[] args) throws Exception {
-		HMap<String,Object> testParam = new HMap<String,Object>();
-		testParam.put("BODY_NO","7WX 000001");
-		testParam.put("MES_PROD_SEQ","12345678901234567");
+//		HMap<String,Object> testParam = new HMap<String,Object>();
+//		testParam.put("BODY_NO","7WX 000001");
+//		testParam.put("MES_PROD_SEQ","12345678901234567");
 
 		//new TestGoStop();
 		//new TestGoStopClass();
 
-		new BarcodeTest();
+		//new BarcodeTest();
+		new TimeEvent();
 
 
     }
