@@ -9,13 +9,17 @@ import java.io.InputStreamReader;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class TimeEvent {
 
     BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
     HMap<String,Object> lastBarcode = new HMap<>(); // 실시간 공정별 하나
 
-    private final Deque<Long> timestamps = new ArrayDeque<>();
+
+    private final Deque<Long> timestamps = new ArrayDeque<>(); // 하나만 관리할때
+    private final Map<String, Deque<Long>> signalMap = new ConcurrentHashMap<>();// 타입별로 독립적인 슬라이딩 윈도우 관리
     private static final long WINDOW_MS = 500L; //
     private static final int THRESHOLD = 3;       // 3번
 
@@ -33,6 +37,25 @@ public class TimeEvent {
     public String params(String type) throws IOException {
         System.out.println(type.toUpperCase() + "=");
         return br.readLine();
+    }
+
+    public boolean onSignal(String type) {
+        long now = System.currentTimeMillis();
+
+        // 타입별 Deque 없으면 자동 생성
+        Deque<Long> timestamps = signalMap.computeIfAbsent(type, k -> new ArrayDeque<>());
+
+        synchronized (timestamps) {
+            timestamps.addLast(now);
+
+            while (!timestamps.isEmpty() && now - timestamps.peekFirst() > WINDOW_MS) {
+                timestamps.pollFirst();
+            }
+
+            boolean result = timestamps.size() >= THRESHOLD;
+            if (result) timestamps.clear();
+            return result;
+        }
     }
 
     public synchronized boolean onSignal() {
