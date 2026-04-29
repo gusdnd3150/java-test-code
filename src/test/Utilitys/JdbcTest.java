@@ -23,22 +23,22 @@ public class JdbcTest {
     protected JdbcTest(boolean mock) {}
 
 //    // 파라미터 없음
-//    List<HMap<String, Object>> result1 = db.selectData(
+//    List<SMap<String, Object>> result1 = db.selectData(
 //            "SELECT * FROM TB_BI_PROC WHERE 1=1"
 //    );
 //    // 파라미터 1개
-//    List<HMap<String, Object>> result2 = db.selectData(
+//    List<SMap<String, Object>> result2 = db.selectData(
 //            "SELECT * FROM TB_BI_PROC WHERE LINE_CD = ?",
 //            "FN01"
 //    );
 //    // 파라미터 여러 개
-//    List<HMap<String, Object>> result3 = db.selectData(
+//    List<SMap<String, Object>> result3 = db.selectData(
 //            "SELECT * FROM TB_BI_PROC WHERE LINE_CD = ? AND PROC_TY_CD = ? ORDER BY SORT_NO ASC",
 //            "FN01", "Process"
 //    );
 
-    public List<HMap<String, Object>> selectData(String query, Object... params) {
-        List<HMap<String, Object>> resultList = new ArrayList<>();
+    public List<SMap<String, Object>> selectData(String query, Object... params) {
+        List<SMap<String, Object>> resultList = new ArrayList<>();
 
         try {
             pstmt = conn.prepareStatement(query);
@@ -54,7 +54,7 @@ public class JdbcTest {
             int colCnt = meta.getColumnCount();
 
             while (rs.next()) {
-                HMap<String, Object> row = new HMap<>();
+                SMap<String, Object> row = new SMap<>();
                 for (int i = 1; i <= colCnt; i++) {
                     String colName = meta.getColumnLabel(i);
                     row.put(colName, rs.getObject(colName));

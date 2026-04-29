@@ -11,6 +11,7 @@ import test.MC.McWriteResponseVo;
 import test.Utilitys.HMap;
 import test.Utilitys.JdbcTest;
 import test.barcode.BarcodeTest;
+import test.core.MessageTest;
 import test.ifPacket.InterfaceHandler;
 import test.time.TimeEvent;
 
@@ -28,14 +29,11 @@ public class Main {
 //		HMap<String,Object> testParam = new HMap<String,Object>();
 //		testParam.put("BODY_NO","7WX 000001");
 //		testParam.put("MES_PROD_SEQ","12345678901234567");
-
 		//new TestGoStop();
 		//new TestGoStopClass();
-
-		//new BarcodeTest();
-		new TimeEvent();
-
-
+//		new BarcodeTest();
+//		new TimeEvent();
+		new MessageTest();
     }
 
 
