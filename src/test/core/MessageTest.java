@@ -4,10 +4,7 @@ import io.netty.buffer.ByteBuf;
 import test.Utilitys.JdbcTest;
 import test.Utilitys.SMap;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.List;
 
 public class MessageTest {
@@ -18,14 +15,40 @@ public class MessageTest {
 
     // 3초 안에 특정 신호가 3번 오는지 확인하는 로직
     public MessageTest() throws Exception {
-        db = new JdbcTest();
-        messageList = db.selectData("SELECT * FROM TB_IF_MES_PROD", "LOGIC");
-        System.out.println(String.format("MessageTest :: %s", messageList.size()));
-        while (true) {
-            String mesProdSeq = params("cnt");
-            if ("1".equals(mesProdSeq)) {
+        //db = new JdbcTest();
+//        messageList = db.selectData("SELECT * FROM TB_IF_MES_PROD", "LOGIC");
+//        System.out.println(String.format("MessageTest :: %s", messageList.size()));
+//        while (true) {
+//            String mesProdSeq = params("cnt");
+//            if ("1".equals(mesProdSeq)) {
+//
+//            }
+//        }
+            String data =
+        "A홍길동                                             |" +
+        "B결제완료                                           |" +
+        "C오류발생: 타임아웃                                 |";
+        test(data,"|");
+    }
 
-            }
+    public void test(String msg, String delimier) throws UnsupportedEncodingException {
+//        String data =
+//            "A홍길동                                             |" +
+//            "B결제완료                                           |" +
+//            "C오류발생: 타임아웃                                 |";
+
+        int    RSLT_LEN  = 1;
+        int    VALUE_LENGTH = 50;
+        int    RECORD_SIZE  = RSLT_LEN + VALUE_LENGTH;
+        String DELIMITER    = delimier;  // 구분자 (없으면 "")
+
+        boolean hasDelimiter = DELIMITER != null && !DELIMITER.isEmpty();
+        int     step         = RECORD_SIZE + (hasDelimiter ? DELIMITER.length() : 0);
+
+        for (int i = 0; i + RECORD_SIZE <= msg.length(); i += step) {
+            String code  = msg.substring(i, i + RSLT_LEN);
+            String value = msg.substring(i + RSLT_LEN, i + RECORD_SIZE).trim();
+            System.out.printf("코드: [%s] | 값: [%s]%n", code, value);
         }
     }
 
