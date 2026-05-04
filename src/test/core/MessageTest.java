@@ -24,29 +24,24 @@ public class MessageTest {
 //
 //            }
 //        }
-            String data =
-        "A홍길동                                             |" +
-        "B결제완료                                           |" +
-        "C오류발생: 타임아웃                                 |";
-        test(data,"|");
+        String data =
+                "A00000000000000000000000000000000000000000000000000" +
+                "B00000000000000000000000000000000000000000000000000" +
+                "C00000000000000000000000000000000000000000000000000";
+        test(data, null);
     }
 
     public void test(String msg, String delimier) throws UnsupportedEncodingException {
-//        String data =
-//            "A홍길동                                             |" +
-//            "B결제완료                                           |" +
-//            "C오류발생: 타임아웃                                 |";
-
-        int    RSLT_LEN  = 1;
-        int    VALUE_LENGTH = 50;
-        int    RECORD_SIZE  = RSLT_LEN + VALUE_LENGTH;
-        String DELIMITER    = delimier;  // 구분자 (없으면 "")
+        int RSLT_LEN = 1;
+        int VALUE_LENGTH = 50;
+        int RECORD_SIZE = RSLT_LEN + VALUE_LENGTH;
+        String DELIMITER = delimier;  // 구분자 (없으면 "")
 
         boolean hasDelimiter = DELIMITER != null && !DELIMITER.isEmpty();
-        int     step         = RECORD_SIZE + (hasDelimiter ? DELIMITER.length() : 0);
+        int step = RECORD_SIZE + (hasDelimiter ? DELIMITER.length() : 0);
 
         for (int i = 0; i + RECORD_SIZE <= msg.length(); i += step) {
-            String code  = msg.substring(i, i + RSLT_LEN);
+            String code = msg.substring(i, i + RSLT_LEN);
             String value = msg.substring(i + RSLT_LEN, i + RECORD_SIZE).trim();
             System.out.printf("코드: [%s] | 값: [%s]%n", code, value);
         }

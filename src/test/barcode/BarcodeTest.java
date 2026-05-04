@@ -3,6 +3,7 @@ package test.barcode;
 import test.Main;
 import test.Utilitys.HMap;
 import test.Utilitys.JdbcTest;
+import test.Utilitys.SMap;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -151,7 +152,7 @@ public class BarcodeTest {
             ") M " +
             "WHERE NUM <= ? " +
             "AND MES_PROD_SEQ = ?";
-        List<HMap<String,Object>> scopeCar = database.selectData(query, lastMesSeq, scope, nextMesSeq);
+        List<SMap<String,Object>> scopeCar = database.selectData(query, lastMesSeq, scope, nextMesSeq);
         if (!scopeCar.isEmpty()) {
             System.out.println("[hasTargetCar] OK :: " + scopeCar.get(0));
             return true;
