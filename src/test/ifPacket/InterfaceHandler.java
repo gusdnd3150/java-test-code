@@ -33,6 +33,10 @@ public class InterfaceHandler {
                 System.out.println(String.format("sendIfData :: skId: %s , flag: %s has no Function", skId,flag));
                 continue;
             }
+            // 추가 필요한 기준정보 세팅 후 apply 해도됌
+//            data.put("SK_ID", skId);
+//            data.put("SK_ID", skId);
+//            data.put("SK_ID", skId);//
             byte[] resultData = handler.apply(data);
             if (resultData.length > 0) {
                 System.out.println(String.format("sendIfData :: skId: %s , flag: %s , sendData:%s", skId,flag, new String(resultData)));
