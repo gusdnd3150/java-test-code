@@ -7,20 +7,8 @@ import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+
 public class MapFilter {
-
-
-//    List<Map<String, Object>> result = MapFilter.of(list)
-//    .eq("PROCESS_CD", "CAP_ASSEMBLY")
-//    .eq("USE_YN", "Y")
-//    .notNull("EQUIP_ID")
-//    .contains("EQUIP_NM", "IEB")
-//    .toList();
-//
-//// 단건
-//     Optional<Map<String, Object>> one = MapFilter.of(list)
-//    .eq("EVENT_ID", "EVT_001")
-//    .findFirst();
 
     private final List<Map<String, Object>> list;
     private final List<Predicate<Map<String, Object>>> predicates = new ArrayList<>();
@@ -33,13 +21,22 @@ public class MapFilter {
         return new MapFilter(list);
     }
 
+    // null 안전하게 수정
     public MapFilter eq(String key, Object value) {
-        predicates.add(row -> value.equals(row.get(key)));
+        predicates.add(row -> {
+            Object rowVal = row.get(key);
+            if (value == null) return rowVal == null;
+            return value.equals(rowVal);
+        });
         return this;
     }
 
     public MapFilter contains(String key, String value) {
-        predicates.add(row -> row.get(key) != null && row.get(key).toString().contains(value));
+        predicates.add(row -> {
+            Object rowVal = row.get(key);
+            if (rowVal == null || value == null) return false;
+            return rowVal.toString().contains(value);
+        });
         return this;
     }
 
@@ -59,7 +56,6 @@ public class MapFilter {
             .collect(Collectors.toList());
     }
 
-    // 단건 추출
     public Optional<Map<String, Object>> findFirst() {
         return list.stream()
             .filter(row -> predicates.stream().allMatch(p -> p.test(row)))
