@@ -56,9 +56,10 @@ public class MapFilter {
             .collect(Collectors.toList());
     }
 
-    public Optional<Map<String, Object>> findFirst() {
+    public Map<String, Object> findFirst() {
         return list.stream()
             .filter(row -> predicates.stream().allMatch(p -> p.test(row)))
-            .findFirst();
+            .findFirst()
+                .orElse(null);
     }
 }
