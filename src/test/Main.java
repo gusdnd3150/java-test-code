@@ -16,8 +16,12 @@ import test.ifPacket.InterfaceHandler;
 import test.time.TimeEvent;
 
 import java.io.IOException;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Enumeration;
 import java.util.List;
 
 
@@ -33,8 +37,31 @@ public class Main {
 		//new TestGoStopClass();
 //		new BarcodeTest();
 //		new TimeEvent();
-		new MessageTest();
+		//new MessageTest();
+
+//		short test =0;
+//		double ss = test/10.0;
+//		System.out.println(ss);
+
+//        String test = "UZ  000001";
+        String test = "UZ 000001";
+        test = test.replaceAll("\\s+", "");
+
+        System.out.println(test);
+        System.out.println(test.substring(0, 3)); // 앞 3자리
+        System.out.println(test.substring(3)); // 앞 3자리
+        System.out.println(test.substring(0, 2)); // 앞 2자리
+        System.out.println(test.substring(2)); // 앞 2자리
+
     }
+
+	public static String formatNumber(double value) {
+    if (value == Math.floor(value)) {
+        return String.valueOf((int) value);
+    } else {
+        return String.valueOf(value);
+    }
+}
 
 
 }
