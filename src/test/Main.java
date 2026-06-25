@@ -33,8 +33,24 @@ public class Main {
 		//new TestGoStopClass();
 //		new BarcodeTest();
 //		new TimeEvent();
-		new MessageTest();
+		//new MessageTest();
+
+//		short test =0;
+//		double ss = test/10.0;
+//		System.out.println(ss);
+
+		short test = 126;
+		double ss = test / 10.0;
+		System.out.println("소수점 없음: " + formatNumber(ss));
     }
+
+	public static String formatNumber(double value) {
+    if (value == Math.floor(value)) {
+        return String.valueOf((int) value);
+    } else {
+        return String.valueOf(value);
+    }
+}
 
 
 }
