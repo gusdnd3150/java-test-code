@@ -37,6 +37,14 @@ public class MapFilter {
         return this;
     }
 
+    public MapFilter eq(String key, Object value) {
+        predicates.add(row ->
+                Objects.equals(row.get(key), value)
+        );
+        return this;
+    }
+
+
     // not equals
     public MapFilter ne(String key, Object value) {
         predicates.add(row ->

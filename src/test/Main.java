@@ -52,7 +52,6 @@ public class Main {
         System.out.println(test.substring(3)); // 앞 3자리
         System.out.println(test.substring(0, 2)); // 앞 2자리
         System.out.println(test.substring(2)); // 앞 2자리
-
     }
 
 	public static String formatNumber(double value) {
