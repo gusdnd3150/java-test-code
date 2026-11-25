@@ -28,30 +28,12 @@ import java.util.List;
 public class Main {
 
 	public static HMap<String,List<HMap<String,Object>>> inBarcodeMap = new HMap<String,List<HMap<String,Object>>>();	//진입라인정보
-
+	
 	public static void main(String[] args) throws Exception {
-//		HMap<String,Object> testParam = new HMap<String,Object>();
-//		testParam.put("BODY_NO","7WX 000001");
-//		testParam.put("MES_PROD_SEQ","12345678901234567");
-		//new TestGoStop();
-		//new TestGoStopClass();
-//		new BarcodeTest();
-//		new TimeEvent();
-		//new MessageTest();
-
-//		short test =0;
-//		double ss = test/10.0;
-//		System.out.println(ss);
-
-//        String test = "UZ  000001";
-        String test = "UZ 000001";
-        test = test.replaceAll("\\s+", "");
-
-        System.out.println(test);
-        System.out.println(test.substring(0, 3)); // 앞 3자리
-        System.out.println(test.substring(3)); // 앞 3자리
-        System.out.println(test.substring(0, 2)); // 앞 2자리
-        System.out.println(test.substring(2)); // 앞 2자리
+		
+		String ascii = "0020";
+		byte[] test = Utility.hexStringToBytes(ascii); // {0x00, 0x20}
+        boolean rslt = Utility.isBitSet(test[1],5);
     }
 
 	public static String formatNumber(double value) {
