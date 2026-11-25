@@ -39,9 +39,8 @@ public class Main {
 //		byte[] test = Utility.hexStringToBytes(ascii); // {0x00, 0x20}
 //        boolean rslt = Utility.isBitSet(test[1],5);
         
-        byte[] tt2 = new byte[] {0x00,0x00};
-        short flag = ByteBuffer.wrap(tt2).order(ByteOrder.BIG_ENDIAN).getShort();
-        System.out.println("sdsd :: "+ flag);
+        
+	    
     }
 
 	public static String formatNumber(double value) {
